@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:wsc="http://www.mulesoft.org/schema/mule/wsc"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/wsc http://www.mulesoft.org/schema/mule/wsc/current/mule-wsc.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+
+	<ee:object-store-caching-strategy name="Caching_Strategy" doc:name="Caching Strategy" doc:id="717de199-2934-47ab-9216-4f4e81834918" keyGenerationExpression="#[attributes.queryParams.location ++ attributes.queryParams.roomType ++ attributes.queryParams.noOfRooms as String]" >
+		<os:private-object-store maxEntries="10" entryTtl="5" entryTtlUnit="MINUTES" expirationInterval="30" expirationIntervalUnit="SECONDS" config-ref="ObjectStore_Config" />
+	</ee:object-store-caching-strategy>
+	<os:config name="ObjectStore_Config" doc:name="ObjectStore Config" doc:id="36cb651e-eae1-4dda-8ee3-1ad69041acc6" >
+		<os:connection />
+	</os:config>
+	<flow name="get-hotels-flow" doc:id="acba9801-218e-4fa6-962d-de30d80c55f5">
+	<async doc:name="Async" doc:id="66ce38c5-7915-4e81-954c-23e719ae6ca4" >
+			<logger level="INFO" doc:name="Log Get Hotels Request Status" doc:id="54a777a0-338f-4057-9ed7-e4158f7c681f" message='#["Request for get hotels started for correlationID: "++ vars.correlationID]' />
+		</async>
+		<set-variable value='#[attributes.queryParams.hotelPartner]' doc:name="hotelName" doc:id="8670d516-d7f6-42df-b239-e7855b33eb3f" variableName="hotelName"/>
+		<ee:transform doc:name="Create soap payload for get hotels request" doc:id="7234e169-1f26-4c9b-a169-5fb2a557bdbe">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/xml
+ns ns0 http://soap.training.mulesoft.com/
+---
+{
+	ns0#listHotels: {
+		destination: attributes.queryParams.location,
+		roomType: attributes.queryParams.roomType default "",
+		noOfRooms: attributes.queryParams.noOfRooms default 0
+	}
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<choice doc:name="Check if hotel partner is available" doc:id="edba70b9-4f2f-4536-9684-e082905fbf59">
+			<when expression='#[upper(vars.hotelName) =="TAJ HOTEL"]'>
+				<async doc:name="Async" doc:id="9506ba54-3e58-457c-94ca-38fe9bbe17c4">
+						<logger level="INFO" doc:name="Log Request Hotel Status" doc:id="0d1933b8-dd8b-49ce-8f6d-38ae872d3d9a" message='#["Request for get hotels sent to get hotels endpoint for correlationID: " ++ vars.correlationID]' />
+					</async>
+					<wsc:consume doc:name="Get Hotels Request" doc:id="d6427974-b056-4e40-b002-22eb8bb76de6" config-ref="Web_Service_Consumer_Config" operation="listHotels">
+						<error-mapping targetType="HOTELS:BAD_REQUEST" sourceType="WSC:BAD_REQUEST"/>
+					<error-mapping targetType="HOTELS:CONNECTION_ERROR" />
+					</wsc:consume>
+				<ee:transform doc:name="Convert get hotels response to JSON" doc:id="6f1d71e0-10ef-4773-8ad6-370ba54154df">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+ns ns0 http://soap.training.mulesoft.com/
+---
+(payload.body.ns0#listHotelsResponse.*return  map ( return , indexOfReturn ) -> {
+	hotelID: return.hotelCode,
+	hotelName: return.hotelName,
+	location: return.destination,
+	roomsAvailable: [{
+		roomType: "AC",
+		roomPrice: return.acRoomPrice,
+		noOfRooms: return.acAvailableRooms,
+	},
+	{
+		roomType: "NONAC",
+		roomPrice: return.nonACRoomPrice,
+		noOfRooms: return.nonACAvailableRooms,
+	}
+	]
+}) filter $.hotelID != null]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+			</when>
+			<otherwise>
+				<raise-error doc:name="Raise error if hotel partner is not available" doc:id="518035ac-9758-494e-8362-2f1bf7f8dfc9" type="HOTELS:UNAVAILABLE" description='"Hotel partner not available"' />
+			</otherwise>
+		</choice>
+		<async doc:name="Async" doc:id="03329d5a-29c7-4ee1-97ac-66e393269010" >
+			<logger level="INFO" doc:name="Log Request Hotel Status" doc:id="1563170e-04dd-4e25-b9fd-fc0d20bf29ca" message='#["Request for get hotels completed for correlationID: " ++ vars.correlationID]' />
+		</async>
+	
+	
+	
+	
+	</flow>
+	<flow name="hotel-booking-flow" doc:id="8f9de816-9240-4bed-89d3-afa4829deb6d">
+		<async doc:name="Async" doc:id="119d0353-300d-40c9-a982-d11238fb9a59" >
+			<logger level="INFO" doc:name="Log Book Hotel Request Status" doc:id="8b403277-0aec-41bf-aeca-44c61d933a93" message='#["Request for book hotel started for correlationID: "++ vars.correlationID]' />
+		</async>
+		<ee:transform doc:name="Create soap payload for book hotel request" doc:id="7793187a-9053-4d63-b718-c5c33874e129" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+ns ns0 http://soap.training.mulesoft.com/
+---
+{
+	ns0#bookHotel: {
+		transactionID: payload.transactionID,
+		hotelCode: payload.hotelID,
+		guestName: payload.guestName,
+		guestPhone: payload.guestPhone,
+		roomType: payload.roomType,
+		noOfRooms: payload.noOfRooms,
+		checkinDate: payload.bookingDate,
+		checkoutDate: payload.bookingDate as Date + ("P$(payload.noOfDays)D" as Period) as String
+	}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<wsc:consume doc:name="Book Hotel Request" doc:id="6a93caf0-0fd6-4602-a3f7-49ac0d36fb52" config-ref="Web_Service_Consumer_Config" operation="bookHotel">
+			<error-mapping targetType="HOTELS:BAD_REQUEST" sourceType="WSC:BAD_REQUEST"/>
+			<error-mapping targetType="HOTELS:CONNECTION_ERROR" />
+		</wsc:consume>
+		<ee:transform doc:name="Convert book hotel response to JSON" doc:id="d1aab14a-d7ef-4e15-a8a9-8a8c9bc163d7" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+ns ns0 http://soap.training.mulesoft.com/
+output application/json
+---
+payload.body.ns0#bookHotelResponse.return]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<async doc:name="Async" doc:id="fc2246bd-cb29-4791-a2a1-fe5051b40af3" >
+			<logger level="INFO" doc:name="Log Book Hotel Request Status" doc:id="a7570fb6-1f3a-447e-a93b-df1cf3fe2876" message='#["Request for book hotel completed for correlationID: "++ vars.correlationID]' />
+		</async>
+	
+		
+</flow>
+	<flow name="get-hotel-by-id-flow" doc:id="fbd07e72-cdcb-460e-aca1-621544b72ade" >
+		<async doc:name="Async" doc:id="d2f89fef-2055-4d10-9647-0d0c494c3f9d" >
+			<logger level="INFO" doc:name="Log GetHotel By ID Request Status" doc:id="4d36628f-5ca3-4bc9-a763-3ddd20935d1e" message='#["Request for get hotel by ID started for correlationID: "++ vars.correlationID]' />
+		</async>
+		<ee:transform doc:name="Create soap payload for get hotel request" doc:id="0cda368f-68a6-47ba-ba2d-259c68855819" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+ns ns0 http://soap.training.mulesoft.com/
+---
+{
+	ns0#listAllHotels: {}
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<wsc:consume operation="listAllHotels" doc:name="Get Hotel By ID" doc:id="43e9e32d-44aa-4c53-9523-72de47eaa7d5" config-ref="Web_Service_Consumer_Config">
+			<error-mapping targetType="HOTELS:BAD_REQUEST" sourceType="WSC:BAD_REQUEST"/>
+			<error-mapping targetType="HOTELS:CONNECTION_ERROR" />
+		</wsc:consume>
+		<ee:transform doc:name="Convert get hotel response to JSON" doc:id="768dab0a-6a83-4767-854a-093c9cb79a5d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+ns ns0 http://soap.training.mulesoft.com/
+output application/json
+---
+(payload.body.ns0#listAllHotelsResponse.*return filter $.hotelCode==vars.hotelID map ( return , indexOfReturn ) -> {
+	hotelID: return.hotelCode,
+	hotelName: return.hotelName,
+	location: return.destination,
+	roomsAvailable: [{
+		roomType: "AC",
+		roomPrice: return.acRoomPrice,
+		noOfRooms: return.acAvailableRooms,
+	},
+	{
+		roomType: "NONAC",
+		roomPrice: return.nonACRoomPrice,
+		noOfRooms: return.nonACAvailableRooms,
+	}
+	]
+})[0]
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<validation:is-false doc:name="Validate Hotel" doc:id="908a1bb7-6269-4699-b7dc-075dd41f9022" expression="#[isEmpty(payload)]" message='"Hotel not available for this hotel ID"'>
+			<error-mapping sourceType="VALIDATION:INVALID_BOOLEAN" targetType="HOTELS:UNAVAILABLE" />
+		</validation:is-false>
+		<async doc:name="Async" doc:id="ee737b0b-3175-4753-8c9c-0df97c21aab5" >
+			<logger level="INFO" doc:name="Log GetHotel By ID Request Status" doc:id="979f9d03-9d6a-440a-afc9-b157d1f1a186" message='#["Request for get hotel by ID completed for correlationID: "++ vars.correlationID]' />
+		</async>
+	</flow>
+
+</mule>

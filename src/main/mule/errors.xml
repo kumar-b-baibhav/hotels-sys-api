@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<error-handler name="globalError_Handler" doc:id="230e6caa-402c-43f4-ac30-3f3410d373f5" >
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="b3eb5457-d9b0-4526-b214-abd0970027e1" type="HOTELS:UNAVAILABLE">
+			<ee:transform doc:name="Transform Message" doc:id="e64e2b0a-f781-4091-9e65-1df520cfeb2f" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+
+import substringBefore, substringAfter from dw::core::Strings
+
+
+output application/json
+---
+{
+	"message": substringBefore((substringAfter((error.description default ""), "\"")),"\"")
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables >
+					<ee:set-variable variableName="httpStatus" ><![CDATA[%dw 2.0
+output application/json
+---
+400]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		
+</on-error-continue>
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="50daae97-dfd2-491c-aab7-82279c32015a" type="HOTELS:BAD_REQUEST">
+			<ee:transform doc:name="Transform Message" doc:id="cd8c0bd0-50a3-4c60-b741-5f8f4e0f2c32" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Invalid hotel request. Please check the request and try again"
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables >
+					<ee:set-variable variableName="httpStatus" ><![CDATA[%dw 2.0
+output application/java
+---
+400]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+
+		</on-error-continue>
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="88613fd7-122d-401a-abe6-8e75d0b81315" type="HOTELS:CONNECTION_ERROR">
+			<ee:transform doc:name="Transform Message" doc:id="d739dea0-0b84-4267-b638-cba2420761bb" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Hotels service unavailable at the moment. Please try again later."
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables >
+					<ee:set-variable variableName="httpStatus" ><![CDATA[%dw 2.0
+output application/java
+---
+404]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-continue>
+		<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="b05d4154-2f21-4d3e-af66-97dc16e00564" type="ANY">
+			<ee:transform doc:name="Transform Message" doc:id="afb48910-7435-4c9b-944c-6092194fe79d">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Internal Server Error"
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="httpStatus"><![CDATA[%dw 2.0
+output application/json
+---
+500]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+		</on-error-continue>
+	
+</error-handler>
+	
+	
+</mule>

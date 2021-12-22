@@ -1,0 +1,11 @@
+%dw 2.0
+
+type auto_8f9de816_9240_4bed_89d3_afa4829deb6d_Input_Payload = {
+  guestPhone: String, 
+  hotelID: String, 
+  noOfRooms: Number, 
+  roomType: "AC" | "NONAC", 
+  guestName: String, 
+  _?: Any
+}
+

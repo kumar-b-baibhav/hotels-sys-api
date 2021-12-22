@@ -1,0 +1,10 @@
+%dw 2.0
+
+type auto_fbd07e72_cdcb_460e_aca1_621544b72ade_Output_Payload = {
+  location: String, 
+  roomsAvailable: Array<{    roomPrice: Number,     noOfRooms: Number,     roomType: "AC" | "NONAC",     _?: Any  }>, 
+  hotelID: String, 
+  hotelName: String, 
+  _?: Any
+}
+
